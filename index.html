@@ -4,9 +4,10 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="Finanças">
-<link rel="icon" type="image/svg+xml" href="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect width='64' height='64' rx='14' fill='%231468F3'/><rect x='12' y='38' width='7' height='14' rx='2' fill='white' fill-opacity='.45'/><rect x='22' y='30' width='7' height='22' rx='2' fill='white' fill-opacity='.65'/><rect x='32' y='22' width='7' height='30' rx='2' fill='white' fill-opacity='.85'/><rect x='42' y='14' width='7' height='38' rx='2' fill='white'/></svg>">
-<link rel="apple-touch-icon" href="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'><rect width='180' height='180' rx='40' fill='%231468F3'/><rect x='34' y='106' width='20' height='40' rx='6' fill='white' fill-opacity='.45'/><rect x='62' y='82' width='20' height='64' rx='6' fill='white' fill-opacity='.65'/><rect x='90' y='60' width='20' height='86' rx='6' fill='white' fill-opacity='.85'/><rect x='118' y='38' width='20' height='108' rx='6' fill='white'/></svg>">
-<link rel="manifest" href='data:application/manifest+json;utf8,{"name":"Controle Financeiro","short_name":"Finanças","start_url":".","display":"standalone","background_color":"%23F5F8FC","theme_color":"%231468F3","icons":[{"src":"data:image/svg+xml;utf8,<svg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 192 192%27><rect width=%27192%27 height=%27192%27 rx=%2742%27 fill=%27%231468F3%27/><rect x=%2736%27 y=%27114%27 width=%2721%27 height=%2742%27 rx=%276%27 fill=%27white%27 fill-opacity=%27.45%27/><rect x=%2766%27 y=%2788%27 width=%2721%27 height=%2768%27 rx=%276%27 fill=%27white%27 fill-opacity=%27.65%27/><rect x=%2796%27 y=%2764%27 width=%2721%27 height=%2792%27 rx=%276%27 fill=%27white%27 fill-opacity=%27.85%27/><rect x=%27126%27 y=%2740%27 width=%2721%27 height=%27116%27 rx=%276%27 fill=%27white%27/></svg>","sizes":"192x192","type":"image/svg+xml","purpose":"any maskable"}]}'>
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+<link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="manifest" href="manifest.webmanifest">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
@@ -1776,4 +1777,13 @@ atualizarDoacaoAutomatica();
 setupAnoDropdown();
 setupFilters(true);  // true = aplica filtro do mês corrente no primeiro load
 renderAll();
+
+// Registra o service worker — necessário para o Chrome oferecer "Instalar como app"
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("sw.js").catch(err => {
+      console.warn("Service worker não registrou:", err);
+    });
+  });
+}
 </script>
