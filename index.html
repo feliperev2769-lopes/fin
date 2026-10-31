@@ -1058,7 +1058,7 @@ function renderLancList(id, lancs, limit=null) {
     return `<div class="lanc ${cls}" data-id="${l.id}">
       <div class="date"><span class="d">${d}</span>${MESES_ABR[m-1].toLowerCase()}</div>
       ${iconHTML(catGrupo(l.categoria))}
-      <div class="info"><div class="cat">${l.obs||l.categoria}</div><div class="meta">${l.categoria} · ${l.conta} ${chips.join(" ")}</div></div>
+      <div class="info"><div class="cat">${l.categoria}</div><div class="meta">${l.obs ? l.obs+' · ' : ''}${l.conta} ${chips.join(" ")}</div></div>
       <div class="val num">${fmtBRL2(+l.valor)}</div>
     </div>`;
   }).join("");
