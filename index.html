@@ -1594,24 +1594,43 @@ async function fsPerm(handle, mode) {
 const supportsFS = typeof window !== "undefined" && "showOpenFilePicker" in window;
 
 async function parseAndLoadBuffer(buf) {
+  // cellDates:true faz SheetJS retornar objetos Date para células de data
   const wb = XLSX.read(buf, {type:"array", cellDates:true});
   let lancs = [];
   if (wb.Sheets["Lançamentos"]) {
-    const rows = XLSX.utils.sheet_to_json(wb.Sheets["Lançamentos"], {header:1, raw:false});
+    // raw:true preserva Date objects e números; raw:false converte tudo para string (perde datas)
+    const rows = XLSX.utils.sheet_to_json(wb.Sheets["Lançamentos"], {header:1, raw:true});
     let hdr = -1;
-    for (let i=0;i<Math.min(rows.length,20);i++) if (rows[i]&&rows[i][0]==="Data"&&rows[i][3]==="Tipo"){hdr=i;break;}
+    for (let i=0;i<Math.min(rows.length,20);i++) {
+      const r=rows[i];
+      if (r && String(r[0]).trim()==="Data" && String(r[3]).trim()==="Tipo") {hdr=i;break;}
+    }
     if (hdr>=0) for (let i=hdr+1;i<rows.length;i++) {
       const r=rows[i]; if(!r||!r[0]) continue;
       let d=r[0];
-      if (d instanceof Date) d=d.toISOString().slice(0,10);
-      else if (typeof d==="string") {
+      if (d instanceof Date) {
+        // Ajuste de fuso: toISOString pode dar dia errado em UTC; usar local
+        const yr=d.getFullYear(), mo=String(d.getMonth()+1).padStart(2,"0"), dy=String(d.getDate()).padStart(2,"0");
+        d=`${yr}-${mo}-${dy}`;
+      } else if (typeof d==="number") {
+        // Número serial do Excel — converter via SheetJS
+        const jsDate = XLSX.SSF.parse_date_code(d);
+        if (!jsDate) continue;
+        d=`${jsDate.y}-${String(jsDate.m).padStart(2,"0")}-${String(jsDate.d).padStart(2,"0")}`;
+      } else if (typeof d==="string") {
         if (/^\d{4}-\d{2}-\d{2}/.test(d)) d=d.slice(0,10);
         else if (/^\d{1,2}\/\d{1,2}\/\d{4}/.test(d)) {const[dd,mm,yy]=d.split("/");d=yy+"-"+mm.padStart(2,"0")+"-"+dd.padStart(2,"0");}
         else continue;
       } else continue;
-      const tipo=r[3],cat=r[4],val=+r[6],conta=r[7]||"Conta Corrente",obs=r[8]||"";
-      const status=r[9]||defaultStatusFor(d), rec=r[10]===true||r[10]==="Sim";
-      if (!tipo||!cat||!val) continue;
+      const tipo=String(r[3]||"").trim();
+      const cat=String(r[4]||"").trim();
+      const val=parseFloat(r[6])||0;  // 0 é válido (ex: Luz=0 em alguns meses)
+      const conta=String(r[7]||"Conta Corrente").trim();
+      const obs=String(r[8]||"").trim();
+      const status=r[9]||defaultStatusFor(d);
+      const rec=r[10]===true||r[10]==="Sim";
+      // Só pula se não tem tipo ou categoria; valor 0 é válido
+      if (!tipo||!cat) continue;
       lancs.push({id:uid(),data:d,tipo,categoria:cat,valor:val,conta,obs,status,recorrente:rec,originalId:null});
     }
   }
