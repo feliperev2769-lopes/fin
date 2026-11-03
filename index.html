@@ -1095,16 +1095,26 @@ function renderMes() {
     const grupo = catGrupo(cat);
     return `<div class="orc-row ${cls}">
       <div class="orc-name">${iconHTML(grupo)}<div class="n">${cat}</div><button class="cat-edit" data-editcat="${cat}" title="Editar categoria"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button></div>
-      <div class="projetado v"><div class="proj-wrap"><div class="input-r"><span class="cur">R$</span><input class="edit-val num" type="text" value="${projV}" data-cat="${cat}" inputmode="decimal"></div></div></div>
+      <div class="projetado v"><div class="proj-wrap"><div class="input-r"><span class="cur">R$</span><input class="edit-val num" type="text" value="${projV>0?projV.toLocaleString('pt-BR',{minimumFractionDigits:0,maximumFractionDigits:2}):projV===0?'0':projV}" data-cat="${cat}" data-raw="${projV}" inputmode="decimal"></div></div></div>
       <div class="realizado v num">${fmtBRL(realV)}</div>
       <div class="diff v num ${diff<0?'neg':'pos'}">${diff<0?"-":""}${fmtBRL(Math.abs(diff))}</div>
       <div class="prog"><div class="bar"><div style="width:${Math.min(pct*100,120)}%"></div></div><div class="pct ${pct<=0.9?'ok':''}">${(pct*100).toFixed(0)}%</div></div>
       <div class="val-mobile"><span class="p num">${fmtBRL(projV)}</span> <span class="r num">${fmtBRL(realV)}</span></div>
     </div>`;
   }).join("");
-  orcEl.querySelectorAll(".edit-val").forEach(inp => inp.addEventListener("change", e => {
-    state.metas[e.target.dataset.cat] = parseFloat(e.target.value)||0; save(); renderAll();
-  }));
+  orcEl.querySelectorAll(".edit-val").forEach(inp => {
+    inp.addEventListener("focus", e => {
+      // ao focar: mostra número puro para edição
+      e.target.value = parseFloat(e.target.dataset.raw)||0 || "";
+    });
+    inp.addEventListener("blur", e => {
+      const raw = parseFloat(String(e.target.value).replace(/\./g,"").replace(",","."))||0;
+      state.metas[e.target.dataset.cat] = raw;
+      e.target.dataset.raw = raw;
+      e.target.value = raw > 0 ? raw.toLocaleString('pt-BR',{minimumFractionDigits:0,maximumFractionDigits:2}) : raw;
+      save(); renderAll();
+    });
+  });
   orcEl.querySelectorAll("[data-editcat]").forEach(b => b.addEventListener("click", e => {
     e.preventDefault(); openCatModal(b.dataset.editcat);
   }));
