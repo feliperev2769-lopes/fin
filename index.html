@@ -1130,7 +1130,7 @@ function renderMes() {
     }).join("");
     ocultasList.querySelectorAll("[data-showcat]").forEach(b => b.addEventListener("click", () => {
       state.catsOcultas = (state.catsOcultas||[]).filter(c => c !== b.dataset.showcat);
-      save(); renderAll(); toast(`${b.dataset.showcat} visível novamente`);
+      savePrefs(); save(); renderAll(); toast(`${b.dataset.showcat} visível novamente`);
     }));
   } else {
     orcOcultasEl.style.display = "none";
@@ -1904,7 +1904,7 @@ document.getElementById("catSave").addEventListener("click", ()=>{
     if (!vis) { if (!state.catsOcultas.includes(nomeFinal)) state.catsOcultas.push(nomeFinal); }
     else { state.catsOcultas = state.catsOcultas.filter(c => c !== nomeFinal); }
   }
-  save(); closeCatModal(); renderAll(); setupFilters();
+  savePrefs(); save(); closeCatModal(); renderAll(); setupFilters();
   toast(editingCat ? "Categoria atualizada" : "Categoria criada");
 });
 document.getElementById("catDelete").addEventListener("click", ()=>{
@@ -1921,7 +1921,7 @@ document.getElementById("catUp").addEventListener("click", ()=>{
   const idx = state.ordemMetas.indexOf(editingCat);
   if (idx > 0) {
     [state.ordemMetas[idx-1], state.ordemMetas[idx]] = [state.ordemMetas[idx], state.ordemMetas[idx-1]];
-    save(); renderAll(); updateCatPosLabel(); toast("Movido para cima");
+    savePrefs(); save(); renderAll(); updateCatPosLabel(); toast("Movido para cima");
   } else { toast("Já está no topo"); }
 });
 document.getElementById("catDown").addEventListener("click", ()=>{
@@ -1929,7 +1929,7 @@ document.getElementById("catDown").addEventListener("click", ()=>{
   const idx = state.ordemMetas.indexOf(editingCat);
   if (idx >= 0 && idx < state.ordemMetas.length-1) {
     [state.ordemMetas[idx+1], state.ordemMetas[idx]] = [state.ordemMetas[idx], state.ordemMetas[idx+1]];
-    save(); renderAll(); updateCatPosLabel(); toast("Movido para baixo");
+    savePrefs(); save(); renderAll(); updateCatPosLabel(); toast("Movido para baixo");
   } else { toast("Já está no fim"); }
 });
 
@@ -1945,13 +1945,44 @@ let toastT; function toast(msg){const t=document.getElementById("toast"); t.text
 // ========= Excel I/O com File System Access API =========
 // IndexedDB para guardar o FileSystemFileHandle entre sessões (localStorage não aceita handle)
 const FS_DB = "cf-fs", FS_STORE = "handles", FS_KEY = "sheet";
+const PREFS_STORE = "prefs", PREFS_KEY = "ui";
 function fsOpenDB() {
   return new Promise((res, rej) => {
-    const r = indexedDB.open(FS_DB, 1);
-    r.onupgradeneeded = () => r.result.createObjectStore(FS_STORE);
+    const r = indexedDB.open(FS_DB, 2); // versão 2 adiciona store de prefs
+    r.onupgradeneeded = e => {
+      const db = r.result;
+      if (!db.objectStoreNames.contains(FS_STORE)) db.createObjectStore(FS_STORE);
+      if (!db.objectStoreNames.contains(PREFS_STORE)) db.createObjectStore(PREFS_STORE);
+    };
     r.onsuccess = () => res(r.result);
     r.onerror = () => rej(r.error);
   });
+}
+async function savePrefs() {
+  try {
+    const db = await fsOpenDB();
+    const prefs = { catsOcultas: state.catsOcultas||[], ordemMetas: state.ordemMetas||[] };
+    await new Promise((res, rej) => {
+      const tx = db.transaction(PREFS_STORE, "readwrite");
+      tx.objectStore(PREFS_STORE).put(prefs, PREFS_KEY);
+      tx.oncomplete = res; tx.onerror = () => rej(tx.error);
+    });
+  } catch(e){}
+}
+async function loadPrefs() {
+  try {
+    const db = await fsOpenDB();
+    const prefs = await new Promise((res, rej) => {
+      const tx = db.transaction(PREFS_STORE, "readonly");
+      const req = tx.objectStore(PREFS_STORE).get(PREFS_KEY);
+      req.onsuccess = () => res(req.result || null);
+      req.onerror = () => rej(req.error);
+    });
+    if (prefs) {
+      if (prefs.catsOcultas) state.catsOcultas = prefs.catsOcultas;
+      if (prefs.ordemMetas && prefs.ordemMetas.length) state.ordemMetas = prefs.ordemMetas;
+    }
+  } catch(e){}
 }
 async function fsGetHandle() {
   try {
@@ -2196,12 +2227,15 @@ document.getElementById("btnLoad").addEventListener("click", doLoad);
 document.getElementById("btnSave").addEventListener("click", doSave);
 updateFSLabels();
 
-// init
-materializaRecorrentes();
-atualizarDoacaoAutomatica();
-setupAnoDropdown();
-setupFilters(true);  // true = aplica filtro do mês corrente no primeiro load
-renderAll();
+// init — carrega prefs (catsOcultas, ordemMetas) antes de renderizar
+(async () => {
+  await loadPrefs();
+  materializaRecorrentes();
+  atualizarDoacaoAutomatica();
+  setupAnoDropdown();
+  setupFilters(true);
+  renderAll();
+})();
 
 // Registra o service worker — necessário para o Chrome oferecer "Instalar como app"
 if ("serviceWorker" in navigator) {
