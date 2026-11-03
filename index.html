@@ -917,13 +917,16 @@ function renderMes() {
 
   const lancs = lancsByMonth(state.mes);
   const prev = lancsByMonth(addMonths(state.mes,-1));
-  const rec = sumByTipo(lancs,"Receita");
-  const real = sumDespesas(lancs);   // exclui Doações do gasto realizado
+  const recBruta = sumByTipo(lancs,"Receita");
+  const doacoes = sumByCat(lancs,"Doações");  // sai da receita, não dos gastos
+  const rec = recBruta - doacoes;             // receita líquida (o que de fato ficou)
+  const real = sumDespesas(lancs);            // despesas sem Doações
   const guard = sumByTipo(lancs,"Guardar");
   const proj = projetadoTotal();
   const saldo = rec - real;
   const disp = saldo - guard;
-  const recP = sumByTipo(prev,"Receita"), realP = sumDespesas(prev), guardP = sumByTipo(prev,"Guardar");
+  const recBrutaP = sumByTipo(prev,"Receita"), doacoesP = sumByCat(prev,"Doações");
+  const recP = recBrutaP - doacoesP, realP = sumDespesas(prev), guardP = sumByTipo(prev,"Guardar");
   const saldoP = recP-realP, dispP = saldoP-guardP;
 
   document.getElementById("k-rec").textContent = fmtBRL(rec);
