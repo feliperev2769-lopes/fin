@@ -2114,6 +2114,24 @@ async function parseAndLoadBuffer(buf) {
   if (lancs.length) state.lancamentos = lancs;
   if (Object.keys(metas).length) state.metas = metas;
   if (caixinhas.length) state.caixinhas = caixinhas;
+  // Lê aba Config: categorias customizadas e excluídas (sincroniza entre PCs)
+  if (wb.Sheets["Config"]) {
+    const rows = XLSX.utils.sheet_to_json(wb.Sheets["Config"], {header:1});
+    rows.forEach(r => {
+      if (!r || !r[0]) return;
+      const chave = String(r[0]).trim();
+      const valor = r[1] != null ? String(r[1]).trim() : "";
+      if (chave === "CatCustom" && valor) {
+        const grupo = r[2] ? String(r[2]).trim() : "Outros";
+        const tipo  = r[3] ? String(r[3]).trim() : "Despesa";
+        if (!CATEGORIAS.find(c => c.nome === valor)) CATEGORIAS.push({nome:valor, grupo, tipo});
+      }
+      if (chave === "CatExcluida" && valor) {
+        if (!state.catsExcluidas) state.catsExcluidas = [];
+        if (!state.catsExcluidas.includes(valor)) state.catsExcluidas.push(valor);
+      }
+    });
+  }
   // Garantir que Cartões nunca fiquem ocultos (remove da lista de ocultas)
   const nomesCartoes = CATEGORIAS.filter(c => c.grupo === "Cartões").map(c => c.nome);
   state.catsOcultas = (state.catsOcultas||[]).filter(c => !nomesCartoes.includes(c));
@@ -2146,6 +2164,12 @@ async function buildWorkbookBlob() {
   months.forEach(ym=>{const ls=state.lancamentos.filter(l=>l.data.startsWith(ym)); const r=sumByTipo(ls,"Receita"),d=sumByTipo(ls,"Despesa"),g=sumByTipo(ls,"Guardar"); rdata.push([ym,r,d,r-d,g]);});
   const ws4=XLSX.utils.aoa_to_sheet(rdata); ws4["!cols"]=[{wch:12},{wch:14},{wch:14},{wch:14},{wch:14}];
   XLSX.utils.book_append_sheet(wb,ws4,"Resumo");
+  // Aba Config: categorias customizadas e excluídas (para sincronizar entre PCs)
+  const cfgdata = [["Chave","Valor","Grupo","Tipo"]];
+  CATEGORIAS.filter(c => !CATS_ORIGINAIS.has(c.nome)).forEach(c => cfgdata.push(["CatCustom", c.nome, c.grupo, c.tipo]));
+  (state.catsExcluidas||[]).forEach(c => cfgdata.push(["CatExcluida", c]));
+  const ws5 = XLSX.utils.aoa_to_sheet(cfgdata); ws5["!cols"]=[{wch:14},{wch:28},{wch:16},{wch:10}];
+  XLSX.utils.book_append_sheet(wb, ws5, "Config");
   const out=XLSX.write(wb,{bookType:"xlsx",type:"array"});
   return new Blob([out],{type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"});
 }
