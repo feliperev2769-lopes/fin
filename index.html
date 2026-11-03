@@ -389,6 +389,9 @@ button,input,select,textarea{font-family:inherit}
 #catVis:checked ~ .ts-track .ts-thumb{left:21px}
 /* row de posição */
 #catMoveRow{margin-bottom:14px;padding:12px 14px;background:var(--surface-2);border-radius:12px;border:1px solid var(--border)}
+/* modal série */
+#modalSerie .btn{display:flex;flex-direction:column;gap:2px;width:100%;cursor:pointer;font-family:inherit}
+#modalSerie .btn:hover{border-color:var(--indigo)!important;background:var(--indigo-soft)!important}
 /* seção ocultas */
 .ocultas-toggle{display:flex;align-items:center;gap:8px;width:100%;padding:11px 20px;border:none;background:transparent;color:var(--muted);font-size:12px;font-weight:600;cursor:pointer;border-top:1px solid var(--border-soft);letter-spacing:.02em;text-transform:uppercase}
 .ocultas-toggle:hover{color:var(--indigo);background:var(--indigo-soft)}
@@ -661,6 +664,26 @@ button,input,select,textarea{font-family:inherit}
 </div>
 
 <!-- Modal categoria -->
+<!-- Modal confirmação de série -->
+<div class="modal-bg" id="modalSerie">
+  <div class="modal" style="max-width:360px">
+    <h3 id="serieTitle">Alterar lançamento recorrente</h3>
+    <p id="serieDesc" style="color:var(--muted);font-size:14px;margin:0 0 20px"></p>
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <button class="btn" id="serieSo" style="justify-content:flex-start;text-align:left;padding:12px 14px;border:1px solid var(--border);border-radius:10px;background:var(--surface-2)">
+        <strong>Só este</strong><br><span style="font-size:12px;color:var(--muted);font-weight:400">Altera apenas este lançamento</span>
+      </button>
+      <button class="btn" id="serieProximos" style="justify-content:flex-start;text-align:left;padding:12px 14px;border:1px solid var(--border);border-radius:10px;background:var(--surface-2)">
+        <strong>Este e os próximos</strong><br><span style="font-size:12px;color:var(--muted);font-weight:400">Altera a partir deste mês em diante</span>
+      </button>
+      <button class="btn" id="serieTodos" style="justify-content:flex-start;text-align:left;padding:12px 14px;border:1px solid var(--border);border-radius:10px;background:var(--surface-2)">
+        <strong>Todos da série</strong><br><span style="font-size:12px;color:var(--muted);font-weight:400">Altera o original e todas as cópias</span>
+      </button>
+      <button class="btn secondary" id=serieCancel style="margin-top:4px">Cancelar</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-bg" id="modalCat">
   <div class="modal">
     <h3 id="catTitle">Nova categoria</h3>
@@ -1606,7 +1629,7 @@ function rebuildContaSelect(selected, tipo){
   const val = opts.includes(selected) ? selected : opts[0];
   sel.innerHTML = opts.map(c=>`<option value="${c}" ${c===val?'selected':''}>${c}</option>`).join("");
 }
-document.getElementById("btnSaveLanc").addEventListener("click",()=>{
+document.getElementById("btnSaveLanc").addEventListener("click", async ()=>{
   const tipo=document.querySelector(".type-tabs button.active").dataset.type;
   const valor=parseValorFormatado(document.getElementById("fValor").value);
   if (!valor){toast("Informe um valor");return;}
@@ -1628,18 +1651,57 @@ document.getElementById("btnSaveLanc").addEventListener("click",()=>{
     const baseObs = (obs||"").replace(/\s*\d+\/\d+$/, "").trim();
     obsFinal = `${baseObs ? baseObs+" " : ""}${pad(parcelaInicial)}/${pad(parcelaTotal)}`;
   }
-  if (state.editingLancId){
-    const l=state.lancamentos.find(x=>x.id===state.editingLancId);
-    const wasRec=l.recorrente;
-    if (recorrente && l.originalId) { l.originalId = null; }
-    Object.assign(l,{data,tipo,categoria,valor:Math.round(valor*100)/100,conta,obs:obsFinal,status,recorrente,recMeses,parcelaInicial,parcelaTotal});
-    // Se mudou recorrência (desligou OU mudou período), limpa cópias
-    if (wasRec && !recorrente) state.lancamentos=state.lancamentos.filter(x=>x.originalId!==l.id);
-    else if (recorrente) state.lancamentos=state.lancamentos.filter(x=>x.originalId!==l.id); // reconstrói
+  const camposNovos = {data,tipo,categoria,valor:Math.round(valor*100)/100,conta,obs:obsFinal,status,recorrente,recMeses,parcelaInicial,parcelaTotal};
+
+  if (state.editingLancId) {
+    const l = state.lancamentos.find(x=>x.id===state.editingLancId);
+    const eDaSerie = l.recorrente || l.originalId;
+    let escopo = "so";
+    if (eDaSerie) {
+      escopo = await confirmarSerie("editar");
+      if (!escopo) return; // cancelou
+    }
+    const origId = getSerieOrigId(l);
+    if (escopo === "so") {
+      // Desvincula da série e aplica só neste
+      Object.assign(l, camposNovos, {recorrente:false, originalId:null, recMeses:null, parcelaInicial:null, parcelaTotal:null});
+    } else if (escopo === "proximos") {
+      // 1) Remove todas as cópias com data >= l.data (exceto o próprio l)
+      state.lancamentos = state.lancamentos.filter(x => {
+        if (x.id === l.id) return true;
+        if (x.originalId === origId && x.data >= l.data) return false;
+        return true;
+      });
+      // 2) Se o original tem data >= l.data, atualiza o original também
+      const orig = state.lancamentos.find(x => x.id === origId);
+      if (orig && orig.data >= l.data) {
+        Object.assign(orig, camposNovos);
+        if (orig !== l) state.lancamentos = state.lancamentos.filter(x => x.id !== l.id);
+      } else {
+        // 3) Este vira o novo "original" da série daqui pra frente
+        Object.assign(l, camposNovos, {recorrente: true, originalId: null});
+        // Atualiza recMeses do antigo original para parar antes deste
+        if (orig) {
+          const [y0,m0] = orig.data.split("-").map(Number);
+          const [y1,m1] = l.data.split("-").map(Number);
+          const diffM = (y1-y0)*12 + (m1-m0);
+          orig.recMeses = diffM; // original para antes desta data
+          if (orig.recMeses <= 0) orig.recorrente = false;
+        }
+      }
+    } else if (escopo === "todos") {
+      // Atualiza o original e reconstrói todas as cópias
+      const orig = state.lancamentos.find(x => x.id === origId);
+      if (orig) Object.assign(orig, camposNovos);
+      else Object.assign(l, camposNovos, {recorrente:true, originalId:null});
+      // Remove todas as cópias para reconstruir
+      state.lancamentos = state.lancamentos.filter(x => x.originalId !== origId);
+      if (orig && orig.id !== l.id) state.lancamentos = state.lancamentos.filter(x => x.id !== l.id);
+    }
   } else {
-    state.lancamentos.push({id:uid(),data,tipo,categoria,valor:Math.round(valor*100)/100,conta,obs:obsFinal,status,recorrente,recMeses,parcelaInicial,parcelaTotal,originalId:null});
+    state.lancamentos.push({id:uid(),...camposNovos,originalId:null});
   }
-  if (recorrente) materializaRecorrentes();
+  if (recorrente || state.lancamentos.some(x=>x.recorrente)) materializaRecorrentes();
   // Se editou um categoria "Doações" manualmente, marca como manual (não é mais auto)
   if (state.editingLancId) {
     const edited = state.lancamentos.find(x=>x.id===state.editingLancId);
@@ -1650,11 +1712,69 @@ document.getElementById("btnSaveLanc").addEventListener("click",()=>{
   const em=data.slice(0,7); if (em!==state.mes) state.mes=em;
   renderAll(); toast(state.editingLancId?"Atualizado":"Lançamento adicionado");
 });
-document.getElementById("btnDelete").addEventListener("click",()=>{
+// ===================== CONFIRMAÇÃO DE SÉRIE =====================
+let _serieResolve = null;
+function confirmarSerie(acao) {
+  // acao: "editar" | "excluir"
+  return new Promise(resolve => {
+    _serieResolve = resolve;
+    document.getElementById("serieTitle").textContent =
+      acao === "excluir" ? "Excluir lançamento recorrente" : "Alterar lançamento recorrente";
+    document.getElementById("serieDesc").textContent =
+      acao === "excluir"
+        ? "Este lançamento faz parte de uma série. O que deseja excluir?"
+        : "Este lançamento faz parte de uma série. O que deseja alterar?";
+    // Texto dos botões muda para excluir
+    document.getElementById("serieSo").querySelector("strong").textContent =
+      acao === "excluir" ? "Só este" : "Só este";
+    document.getElementById("serieProximos").querySelector("strong").textContent =
+      acao === "excluir" ? "Este e os próximos" : "Este e os próximos";
+    document.getElementById("serieTodos").querySelector("strong").textContent =
+      acao === "excluir" ? "Todos da série" : "Todos da série";
+    document.getElementById("modalSerie").classList.add("open");
+  });
+}
+function fecharModalSerie(resp) {
+  document.getElementById("modalSerie").classList.remove("open");
+  if (_serieResolve) { _serieResolve(resp); _serieResolve = null; }
+}
+document.getElementById("serieSo").addEventListener("click", () => fecharModalSerie("so"));
+document.getElementById("serieProximos").addEventListener("click", () => fecharModalSerie("proximos"));
+document.getElementById("serieTodos").addEventListener("click", () => fecharModalSerie("todos"));
+document.getElementById("serieCancel").addEventListener("click", () => fecharModalSerie(null));
+document.getElementById("modalSerie").addEventListener("click", e => {
+  if (e.target.id === "modalSerie") fecharModalSerie(null);
+});
+
+// Helper: retorna o originalId da série (seja o próprio se for original, ou originalId se for cópia)
+function getSerieOrigId(l) { return l.recorrente ? l.id : l.originalId; }
+
+document.getElementById("btnDelete").addEventListener("click", async ()=>{
   const id=state.editingLancId; if (!id) return;
   const l=state.lancamentos.find(x=>x.id===id);
-  if (l && l.recorrente) state.lancamentos=state.lancamentos.filter(x=>x.originalId!==id);
-  state.lancamentos=state.lancamentos.filter(x=>x.id!==id);
+  if (!l) return;
+  const eDaSerie = l.recorrente || l.originalId;
+  let escopo = "so";
+  if (eDaSerie) {
+    escopo = await confirmarSerie("excluir");
+    if (!escopo) return; // cancelou
+  }
+  const origId = getSerieOrigId(l);
+  if (escopo === "so") {
+    state.lancamentos = state.lancamentos.filter(x => x.id !== id);
+  } else if (escopo === "proximos") {
+    // Remove este e todas as cópias com data >= a data deste
+    state.lancamentos = state.lancamentos.filter(x => {
+      if (x.id === id) return false;
+      if ((x.originalId === origId || x.id === origId) && x.data >= l.data && x.id !== origId) return false;
+      return true;
+    });
+    // Se o original faz parte dos "próximos" (data >= l.data), remove também
+    const orig = state.lancamentos.find(x => x.id === origId);
+    if (orig && orig.data >= l.data) state.lancamentos = state.lancamentos.filter(x => x.id !== origId);
+  } else if (escopo === "todos") {
+    state.lancamentos = state.lancamentos.filter(x => x.id !== origId && x.originalId !== origId);
+  }
   atualizarDoacaoAutomatica();
   save(); closeModal(); renderAll(); toast("Excluído");
 });
