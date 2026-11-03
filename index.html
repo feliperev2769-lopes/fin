@@ -1078,14 +1078,16 @@ function renderMes() {
   // orçamento table
   const orcEl = document.getElementById("orcList");
   // Sincroniza ordem com metas existentes + sempre inclui Cartões mesmo sem meta (exceto os explicitamente excluídos)
+  // Usa metasRender (cópia) para não poluir state.metas com zeros temporários
   const excluidas = state.catsExcluidas || [];
-  const cartoesSemMeta = CATEGORIAS.filter(c => c.grupo === "Cartões" && !(c.nome in state.metas) && !excluidas.includes(c.nome)).map(c => c.nome);
-  cartoesSemMeta.forEach(c => { state.metas[c] = 0; });
-  state.ordemMetas = state.ordemMetas.filter(c => c in state.metas);
-  Object.keys(state.metas).forEach(c => { if (!state.ordemMetas.includes(c)) state.ordemMetas.push(c); });
+  const metasRender = Object.assign({}, state.metas);
+  CATEGORIAS.filter(c => c.grupo === "Cartões" && !(c.nome in metasRender) && !excluidas.includes(c.nome))
+            .forEach(c => { metasRender[c.nome] = 0; });
+  state.ordemMetas = state.ordemMetas.filter(c => c in metasRender);
+  Object.keys(metasRender).forEach(c => { if (!state.ordemMetas.includes(c)) state.ordemMetas.push(c); });
   const cats = state.ordemMetas.filter(c => c !== "Doações" && !(state.catsOcultas||[]).includes(c));
   orcEl.innerHTML = cats.map(cat => {
-    const projV = state.metas[cat] || 0;
+    const projV = metasRender[cat] || 0;
     const realV = sumByCat(lancs, cat);
     const diff = projV - realV;
     const pct = projV>0 ? realV/projV : 0;
@@ -1108,7 +1110,7 @@ function renderMes() {
   }));
 
   // Seção de ocultas
-  const ocultas = (state.catsOcultas||[]).filter(c => c in state.metas && c !== "Doações");
+  const ocultas = (state.catsOcultas||[]).filter(c => c in metasRender && c !== "Doações");
   const orcOcultasEl = document.getElementById("orcOcultas");
   const ocultasList = document.getElementById("orcOcultasList");
   const ocultasBadge = document.getElementById("ocultasBadge");
@@ -1116,7 +1118,7 @@ function renderMes() {
     orcOcultasEl.style.display = "";
     ocultasBadge.textContent = ocultas.length;
     ocultasList.innerHTML = ocultas.map(cat => {
-      const projV = state.metas[cat] || 0;
+      const projV = metasRender[cat] || 0;
       const realV = sumByCat(lancs, cat);
       const grupo = catGrupo(cat);
       return `<div class="orc-row">
