@@ -1616,7 +1616,10 @@ function setTipoTab(tipo){
 }
 function rebuildCatSelect(tipo, selected){
   const sel=document.getElementById("fCategoria");
-  const options = tipo==="Guardar"?state.caixinhas.map(c=>c.nome):CATEGORIAS.filter(c=>c.tipo===tipo).map(c=>c.nome);
+  const excluidas = state.catsExcluidas || [];
+  const options = tipo==="Guardar"
+    ? state.caixinhas.map(c=>c.nome)
+    : CATEGORIAS.filter(c=>c.tipo===tipo && !excluidas.includes(c.nome)).map(c=>c.nome);
   sel.innerHTML = options.map(c=>`<option value="${c}" ${c===selected?'selected':''}>${c}</option>`).join("");
 }
 function rebuildContaSelect(selected, tipo){
