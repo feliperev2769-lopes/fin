@@ -596,7 +596,7 @@ button,input,select,textarea{font-family:inherit}
     <div class="field"><label>Categoria</label><select id="fCategoria"></select></div>
     <div class="field-row">
       <div class="field"><label>Data</label><input id="fData" type="date"></div>
-      <div class="field"><label>Conta</label><select id="fConta"></select></div>
+      <div class="field"><label id="fContaLabel">Conta</label><select id="fConta"></select></div>
     </div>
     <div class="field" id="fStatusField"><label>Status</label><select id="fStatus"><option>Pago</option><option>A vencer</option><option>Pendente</option></select></div>
     <div class="field"><label class="toggle"><input type="checkbox" id="fRecorrente"><span>Repetir todo mês (recorrente)</span></label></div>
@@ -696,6 +696,8 @@ const CATEGORIAS = [
 ];
 // Contas de origem/destino genéricas. O usuário pode editar na planilha ou renomear ao lançar.
 const CONTAS = ["Conta Corrente","Conta Digital","Cartão","Dinheiro"];
+const FORMAS_PAG = ["PIX","Boleto","Cartão de Crédito","Cartão de Débito","Dinheiro","Débito Automático"];
+const CONTAS_REC = ["Conta Corrente","Conta Digital","Dinheiro"];
 // Metas iniciais: vazio por design. O usuário define cada categoria via botão "+ Nova categoria"
 // ou importando pela aba "Metas" do arquivo Excel.
 const METAS_INICIAIS = {};
@@ -1419,7 +1421,7 @@ function openModal(id, prefill) {
   document.getElementById("fRecMeses").value = l && l.recMeses ? l.recMeses : "";
   document.getElementById("fRecMesesField").hidden = !(l?!!l.recorrente:false);
   rebuildCatSelect(tipo, base.categoria||null);
-  rebuildContaSelect(base.conta||null);
+  rebuildContaSelect(base.conta||null, tipo);
   document.getElementById("fStatus").value = l?l.status:defaultStatusFor(defaultDate);
   modalBg.classList.add("open");
   setTimeout(()=>document.getElementById("fValor").focus(),50);
@@ -1455,6 +1457,7 @@ function parseValorFormatado(str) {
 function setTipoTab(tipo){
   document.querySelectorAll(".type-tabs button").forEach(b=>b.classList.toggle("active",b.dataset.type===tipo));
   rebuildCatSelect(tipo,document.getElementById("fCategoria").value);
+  rebuildContaSelect(document.getElementById("fConta").value, tipo);
   document.getElementById("fStatusField").style.display = tipo==="Despesa"?"":"none";
 }
 function rebuildCatSelect(tipo, selected){
@@ -1462,9 +1465,21 @@ function rebuildCatSelect(tipo, selected){
   const options = tipo==="Guardar"?state.caixinhas.map(c=>c.nome):CATEGORIAS.filter(c=>c.tipo===tipo).map(c=>c.nome);
   sel.innerHTML = options.map(c=>`<option value="${c}" ${c===selected?'selected':''}>${c}</option>`).join("");
 }
-function rebuildContaSelect(selected){
-  const sel=document.getElementById("fConta");
-  sel.innerHTML = CONTAS.map(c=>`<option value="${c}" ${c===selected?'selected':''}>${c}</option>`).join("");
+function rebuildContaSelect(selected, tipo){
+  if (!tipo) tipo = document.querySelector(".type-tabs button.active")?.dataset.type || "Despesa";
+  const label = document.getElementById("fContaLabel");
+  let opts;
+  if (tipo === "Despesa") {
+    label.textContent = "Forma de pagamento";
+    opts = FORMAS_PAG;
+  } else {
+    label.textContent = "Conta";
+    opts = CONTAS_REC;
+  }
+  const sel = document.getElementById("fConta");
+  // tenta manter selecionado; se não existir na nova lista, usa o primeiro
+  const val = opts.includes(selected) ? selected : opts[0];
+  sel.innerHTML = opts.map(c=>`<option value="${c}" ${c===val?'selected':''}>${c}</option>`).join("");
 }
 document.getElementById("btnSaveLanc").addEventListener("click",()=>{
   const tipo=document.querySelector(".type-tabs button.active").dataset.type;
