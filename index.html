@@ -389,6 +389,15 @@ button,input,select,textarea{font-family:inherit}
 #catVis:checked ~ .ts-track .ts-thumb{left:21px}
 /* row de posição */
 #catMoveRow{margin-bottom:14px;padding:12px 14px;background:var(--surface-2);border-radius:12px;border:1px solid var(--border)}
+/* seção ocultas */
+.ocultas-toggle{display:flex;align-items:center;gap:8px;width:100%;padding:11px 20px;border:none;background:transparent;color:var(--muted);font-size:12px;font-weight:600;cursor:pointer;border-top:1px solid var(--border-soft);letter-spacing:.02em;text-transform:uppercase}
+.ocultas-toggle:hover{color:var(--indigo);background:var(--indigo-soft)}
+.ocultas-toggle svg{width:14px;height:14px;flex-shrink:0}
+.ocultas-badge{display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;padding:0 5px;border-radius:999px;background:var(--border);color:var(--muted);font-size:10px;font-weight:700;margin-left:auto}
+.ocultas-list .orc-row{opacity:.55;background:repeating-linear-gradient(45deg,transparent,transparent 4px,rgba(0,0,0,.015) 4px,rgba(0,0,0,.015) 8px)}
+.ocultas-list .orc-row:hover{opacity:.8}
+.ocultas-row-reveal{display:flex;align-items:center;gap:6px;cursor:pointer;border:none;background:transparent;color:var(--indigo);font-size:11px;font-weight:600;padding:4px 8px;border-radius:6px}
+.ocultas-row-reveal:hover{background:var(--indigo-soft)}
 .toggle input{width:18px;height:18px;cursor:pointer;accent-color:var(--indigo)}
 .toggle span{font-size:13px}
 .modal-actions{display:flex;gap:8px;margin-top:20px}
@@ -491,6 +500,14 @@ button,input,select,textarea{font-family:inherit}
       </div>
       <div class="orc-head"><div>Categoria</div><div>Projetado</div><div>Realizado</div><div>Diferença</div><div>Progresso</div></div>
       <div id="orcList"></div>
+      <div id="orcOcultas" style="display:none">
+        <button id="btnToggleOcultas" class="ocultas-toggle">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+          <span id="btnToggleOcultasLabel">Ver categorias ocultas</span>
+          <span id="ocultasBadge" class="ocultas-badge"></span>
+        </button>
+        <div id="orcOcultasList" class="ocultas-list" style="display:none"></div>
+      </div>
     </div>
   </div>
 
@@ -1043,6 +1060,39 @@ function renderMes() {
   orcEl.querySelectorAll("[data-editcat]").forEach(b => b.addEventListener("click", e => {
     e.preventDefault(); openCatModal(b.dataset.editcat);
   }));
+
+  // Seção de ocultas
+  const ocultas = (state.catsOcultas||[]).filter(c => c in state.metas && c !== "Doações");
+  const orcOcultasEl = document.getElementById("orcOcultas");
+  const ocultasList = document.getElementById("orcOcultasList");
+  const ocultasBadge = document.getElementById("ocultasBadge");
+  if (ocultas.length > 0) {
+    orcOcultasEl.style.display = "";
+    ocultasBadge.textContent = ocultas.length;
+    ocultasList.innerHTML = ocultas.map(cat => {
+      const projV = state.metas[cat] || 0;
+      const realV = sumByCat(lancs, cat);
+      const grupo = catGrupo(cat);
+      return `<div class="orc-row">
+        <div class="orc-name">${iconHTML(grupo)}<div class="n">${cat}</div>
+          <button class="ocultas-row-reveal" data-showcat="${cat}" title="Tornar visível">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" width="12" height="12"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg> mostrar
+          </button>
+        </div>
+        <div class="projetado v num">${fmtBRL(projV)}</div>
+        <div class="realizado v num">${fmtBRL(realV)}</div>
+        <div class="diff v"></div>
+        <div class="prog"><div class="bar" style="opacity:.4"><div style="width:${projV>0?Math.min(realV/projV*100,120):0}%"></div></div></div>
+        <div class="val-mobile"><span class="p num">${fmtBRL(projV)}</span> <span class="r num">${fmtBRL(realV)}</span></div>
+      </div>`;
+    }).join("");
+    ocultasList.querySelectorAll("[data-showcat]").forEach(b => b.addEventListener("click", () => {
+      state.catsOcultas = (state.catsOcultas||[]).filter(c => c !== b.dataset.showcat);
+      save(); renderAll(); toast(`${b.dataset.showcat} visível novamente`);
+    }));
+  } else {
+    orcOcultasEl.style.display = "none";
+  }
 
   renderDonut(lancs);
   renderLancList("lancList", lancs);
@@ -1624,6 +1674,13 @@ function openCatModal(cat) {
 }
 function closeCatModal() { document.getElementById("modalCat").classList.remove("open"); editingCat = null; }
 document.getElementById("btnNovaCat").addEventListener("click", ()=>openCatModal(null));
+document.getElementById("btnToggleOcultas").addEventListener("click", ()=>{
+  const list = document.getElementById("orcOcultasList");
+  const lbl = document.getElementById("btnToggleOcultasLabel");
+  const open = list.style.display === "none";
+  list.style.display = open ? "" : "none";
+  lbl.textContent = open ? "Ocultar categorias ocultas" : "Ver categorias ocultas";
+});
 document.getElementById("catCancel").addEventListener("click", closeCatModal);
 document.getElementById("modalCat").addEventListener("click", e=>{if (e.target.id==="modalCat") closeCatModal();});
 document.getElementById("catSave").addEventListener("click", ()=>{
