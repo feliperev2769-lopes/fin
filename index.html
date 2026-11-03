@@ -2093,7 +2093,7 @@ async function parseAndLoadBuffer(buf) {
   const metas = {};
   if (wb.Sheets["Metas"]) {
     const rows = XLSX.utils.sheet_to_json(wb.Sheets["Metas"], {header:1});
-    for (let i=3;i<rows.length;i++){const r=rows[i]; if (!r||!r[0]||!r[1]) continue; metas[r[0]]=+r[1];}
+    for (let i=3;i<rows.length;i++){const r=rows[i]; if (!r||!r[0]||r[1]==null||r[1]==="") continue; metas[r[0]]=+r[1];}
   }
   const caixinhas = [];
   if (wb.Sheets["Caixinhas"]) {
