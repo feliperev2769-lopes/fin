@@ -2230,6 +2230,12 @@ updateFSLabels();
 // init — carrega prefs (catsOcultas, ordemMetas) antes de renderizar
 (async () => {
   await loadPrefs();
+  // Ocultar por padrão tudo que não for Cartão (só na primeira vez — se já tem prefs salvas, respeita)
+  if (!state.catsOcultas || state.catsOcultas.length === 0) {
+    state.catsOcultas = CATEGORIAS
+      .filter(c => c.grupo !== "Cartões" && c.nome !== "Doações")
+      .map(c => c.nome);
+  }
   materializaRecorrentes();
   atualizarDoacaoAutomatica();
   setupAnoDropdown();
