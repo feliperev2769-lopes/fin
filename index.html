@@ -774,9 +774,8 @@ window.addEventListener("beforeunload", e => {
   if (state.dirty) { e.preventDefault(); e.returnValue = ""; return ""; }
 });
 function pickStartMonth() {
-  const ms = new Set(state.lancamentos.map(l=>l.data.slice(0,7)));
-  const cur = todayYm(); if (ms.has(cur)) return cur;
-  const sorted=[...ms].sort(); return sorted[sorted.length-1]||cur;
+  // Sempre abre no mês atual, independente de ter lançamentos ou não
+  return todayYm();
 }
 state.mes = pickStartMonth();
 
