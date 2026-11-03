@@ -249,6 +249,7 @@ button,input,select,textarea{font-family:inherit}
 .lanc .cat-ic svg{width:16px;height:16px}
 .lanc .info{min-width:0}
 .lanc .cat{font-weight:600;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lanc .cat .cat-sep{font-weight:400;color:var(--muted);margin:0 2px}
 .lanc .meta{font-size:11px;color:var(--muted);margin-top:3px;display:flex;gap:6px;align-items:center;flex-wrap:wrap}
 .lanc .val{font-weight:700;font-size:14px;white-space:nowrap;text-align:right}
 .lanc.receita .val{color:var(--good)}
@@ -670,8 +671,7 @@ const CATEGORIAS = [
   {nome:"Cartão 3",grupo:"Cartões",tipo:"Despesa"},
   {nome:"Imposto de Renda",grupo:"Impostos",tipo:"Despesa"},
   {nome:"Impostos",grupo:"Impostos",tipo:"Despesa"},
-  {nome:"Salário 1",grupo:"Receita",tipo:"Receita"},
-  {nome:"Salário 2",grupo:"Receita",tipo:"Receita"},
+  {nome:"Salário",grupo:"Receita",tipo:"Receita"},
   {nome:"13º / Férias",grupo:"Receita",tipo:"Receita"},
   {nome:"Comissões",grupo:"Receita",tipo:"Receita"},
   {nome:"Outras receitas",grupo:"Receita",tipo:"Receita"},
@@ -807,7 +807,7 @@ function materializaRecorrentes() {
       const ym = cur.getFullYear()+"-"+String(cur.getMonth()+1).padStart(2,"0");
       const has = state.lancamentos.some(l => l.data.startsWith(ym) && (
         l.originalId===orig.id || l.id===orig.id ||
-        (l.categoria===orig.categoria && l.tipo===orig.tipo && l.conta===orig.conta)
+        (l.categoria===orig.categoria && l.tipo===orig.tipo && l.conta===orig.conta && Math.abs(l.valor - orig.valor) < 0.01)
       ));
       if (!has) {
         const day = Math.min(+orig.data.slice(8,10), daysInMonth(cur.getFullYear(), cur.getMonth()));
@@ -1058,7 +1058,7 @@ function renderLancList(id, lancs, limit=null) {
     return `<div class="lanc ${cls}" data-id="${l.id}">
       <div class="date"><span class="d">${d}</span>${MESES_ABR[m-1].toLowerCase()}</div>
       ${iconHTML(catGrupo(l.categoria))}
-      <div class="info"><div class="cat">${l.categoria}</div><div class="meta">${l.obs ? l.obs+' · ' : ''}${l.conta} ${chips.join(" ")}</div></div>
+      <div class="info"><div class="cat">${l.obs ? l.obs+' <span class="cat-sep">–</span> '+l.categoria : l.categoria}</div><div class="meta">${l.conta} ${chips.join(" ")}</div></div>
       <div class="val num">${fmtBRL2(+l.valor)}</div>
     </div>`;
   }).join("");
@@ -1349,6 +1349,25 @@ document.querySelectorAll(".type-tabs button").forEach(b=>b.addEventListener("cl
 document.getElementById("fRecorrente").addEventListener("change", e => {
   document.getElementById("fRecMesesField").hidden = !e.target.checked;
 });
+// Máscara monetária: formata o campo de valor enquanto o usuário digita
+document.getElementById("fValor").addEventListener("input", e => {
+  const el = e.target;
+  // Pega só os dígitos
+  let digits = el.value.replace(/\D/g, "");
+  if (!digits) { el.value = ""; return; }
+  // Interpreta como centavos (últimos 2 dígitos = centavos)
+  const cents = parseInt(digits, 10);
+  const reais = Math.floor(cents / 100);
+  const centsPart = cents % 100;
+  // Formata com pontos de milhar e vírgula decimal
+  const reaisStr = reais.toLocaleString("pt-BR");
+  el.value = reaisStr + "," + String(centsPart).padStart(2, "0");
+});
+// Ao salvar, interpreta o valor formatado corretamente
+function parseValorFormatado(str) {
+  // Remove pontos de milhar, troca vírgula por ponto
+  return parseFloat(str.replace(/\./g, "").replace(",", ".")) || 0;
+}
 function setTipoTab(tipo){
   document.querySelectorAll(".type-tabs button").forEach(b=>b.classList.toggle("active",b.dataset.type===tipo));
   rebuildCatSelect(tipo,document.getElementById("fCategoria").value);
@@ -1365,7 +1384,7 @@ function rebuildContaSelect(selected){
 }
 document.getElementById("btnSaveLanc").addEventListener("click",()=>{
   const tipo=document.querySelector(".type-tabs button.active").dataset.type;
-  const valor=parseFloat(document.getElementById("fValor").value.replace(",","."))||0;
+  const valor=parseValorFormatado(document.getElementById("fValor").value);
   if (!valor){toast("Informe um valor");return;}
   const categoria=document.getElementById("fCategoria").value;
   const data=document.getElementById("fData").value; if (!data){toast("Informe uma data");return;}
