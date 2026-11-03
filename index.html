@@ -836,7 +836,8 @@ let state = {
   lancamentos: [],
   metas: {},
   ordemMetas: [],
-  catsOcultas: [],   // categorias ocultas do dashboard (ainda contam nos cálculos)
+  catsOcultas: [],    // categorias ocultas do dashboard (ainda contam nos cálculos)
+  catsExcluidas: [],  // categorias explicitamente excluídas pelo usuário (não reaparecem)
   caixinhas: [],
   tab: "mes", mes: new Date().toISOString().slice(0,7), anoView: new Date().getFullYear(),
   editingLancId: null, editingCxId: null,
@@ -1076,9 +1077,10 @@ function renderMes() {
 
   // orçamento table
   const orcEl = document.getElementById("orcList");
-  // Sincroniza ordem com metas existentes + sempre inclui Cartões mesmo sem meta
-  const cartoesSemMeta = CATEGORIAS.filter(c => c.grupo === "Cartões" && !(c.nome in state.metas)).map(c => c.nome);
-  cartoesSemMeta.forEach(c => { state.metas[c] = state.metas[c] || 0; });
+  // Sincroniza ordem com metas existentes + sempre inclui Cartões mesmo sem meta (exceto os explicitamente excluídos)
+  const excluidas = state.catsExcluidas || [];
+  const cartoesSemMeta = CATEGORIAS.filter(c => c.grupo === "Cartões" && !(c.nome in state.metas) && !excluidas.includes(c.nome)).map(c => c.nome);
+  cartoesSemMeta.forEach(c => { state.metas[c] = 0; });
   state.ordemMetas = state.ordemMetas.filter(c => c in state.metas);
   Object.keys(state.metas).forEach(c => { if (!state.ordemMetas.includes(c)) state.ordemMetas.push(c); });
   const cats = state.ordemMetas.filter(c => c !== "Doações" && !(state.catsOcultas||[]).includes(c));
@@ -1915,7 +1917,9 @@ document.getElementById("catDelete").addEventListener("click", ()=>{
   if (n > 0 && !confirm("Essa categoria tem " + n + " lançamentos. Excluir? Os lançamentos ficam com a categoria antiga.")) return;
   delete state.metas[editingCat];
   state.ordemMetas = state.ordemMetas.filter(c => c !== editingCat);
-  save(); closeCatModal(); renderAll();
+  if (!state.catsExcluidas) state.catsExcluidas = [];
+  if (!state.catsExcluidas.includes(editingCat)) state.catsExcluidas.push(editingCat);
+  savePrefs(); save(); closeCatModal(); renderAll();
   toast("Categoria excluída");
 });
 document.getElementById("catUp").addEventListener("click", ()=>{
@@ -1963,7 +1967,7 @@ function fsOpenDB() {
 async function savePrefs() {
   try {
     const db = await fsOpenDB();
-    const prefs = { catsOcultas: state.catsOcultas||[], ordemMetas: state.ordemMetas||[] };
+    const prefs = { catsOcultas: state.catsOcultas||[], ordemMetas: state.ordemMetas||[], catsExcluidas: state.catsExcluidas||[] };
     await new Promise((res, rej) => {
       const tx = db.transaction(PREFS_STORE, "readwrite");
       tx.objectStore(PREFS_STORE).put(prefs, PREFS_KEY);
@@ -1983,6 +1987,7 @@ async function loadPrefs() {
     if (prefs) {
       if (prefs.catsOcultas) state.catsOcultas = prefs.catsOcultas;
       if (prefs.ordemMetas && prefs.ordemMetas.length) state.ordemMetas = prefs.ordemMetas;
+      if (prefs.catsExcluidas) state.catsExcluidas = prefs.catsExcluidas;
     }
   } catch(e){}
 }
