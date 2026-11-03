@@ -1676,7 +1676,7 @@ async function parseAndLoadBuffer(buf) {
   if (caixinhas.length) state.caixinhas = caixinhas;
   materializaRecorrentes();
   atualizarDoacaoAutomatica();
-  state.mes = todayYm(); setupAnoDropdown(); setupFilters(); renderAll();
+  state.mes = todayYm(); setupAnoDropdown(); setupFilters(true); renderAll();
   state.dirty = false; updateSaveLabel();  // acabou de ler da planilha; nada "sujo" ainda
   return lancs.length;
 }
