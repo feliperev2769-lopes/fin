@@ -624,7 +624,14 @@ button,input,select,textarea{font-family:inherit}
     </div>
     <div class="field" id="fStatusField"><label>Status</label><select id="fStatus"><option>Pago</option><option>A vencer</option><option>Pendente</option></select></div>
     <div class="field"><label class="toggle"><input type="checkbox" id="fRecorrente"><span>Repetir todo mês (recorrente)</span></label></div>
-    <div class="field" id="fRecMesesField" hidden><label>Repetir por quantos meses? <span style="color:var(--muted);text-transform:none;letter-spacing:0;font-weight:500">(vazio = indefinido)</span></label><input id="fRecMeses" type="number" min="1" max="120" placeholder="Ex: 12"></div>
+    <div id="fRecMesesField" hidden>
+      <div class="field"><label>Repetir por quantos meses? <span style="color:var(--muted);text-transform:none;letter-spacing:0;font-weight:500">(vazio = indefinido)</span></label><input id="fRecMeses" type="number" min="1" max="600" placeholder="Ex: 12"></div>
+      <div class="field"><label class="toggle" style="gap:12px"><input type="checkbox" id="fParcelado"><span>Numerar como parcelas (01/36, 02/36…)</span></label></div>
+      <div class="field-row" id="fParceladoFields" hidden>
+        <div class="field num"><label>Parcela inicial</label><input id="fParcelaInicial" type="number" min="1" placeholder="1" value="1"></div>
+        <div class="field num"><label>Total de parcelas</label><input id="fParcelaTotal" type="number" min="2" placeholder="Ex: 36"></div>
+      </div>
+    </div>
     <div class="field"><label>Observação (opcional)</label><input id="fObs" type="text"></div>
     <div class="modal-actions">
       <button type="button" id="btnCancel">Cancelar</button>
@@ -871,7 +878,19 @@ function materializaRecorrentes() {
         const day = Math.min(+orig.data.slice(8,10), daysInMonth(cur.getFullYear(), cur.getMonth()));
         const data = cur.getFullYear()+"-"+String(cur.getMonth()+1).padStart(2,"0")+"-"+String(day).padStart(2,"0");
         const status = data <= todayStr() ? "Pago" : "A vencer";
-        state.lancamentos.push({id:uid(),data,tipo:orig.tipo,categoria:orig.categoria,valor:orig.valor,conta:orig.conta,obs:orig.obs,status,recorrente:false,originalId:orig.id});
+        // Numeração de parcelas: calcular qual parcela é essa cópia
+        let obsLanc = orig.obs;
+        if (orig.parcelaTotal) {
+          const inicial = orig.parcelaInicial || 1;
+          const total = orig.parcelaTotal;
+          // índice desta cópia: quantos meses depois do original
+          const diffM = (cur.getFullYear() - y0) * 12 + (cur.getMonth() - (m0-1));
+          const numParcela = inicial + diffM;
+          const pad = n => String(n).padStart(String(total).length, "0");
+          const baseObs = (orig.obs||"").replace(/\s*\d+\/\d+$/, "").trim();
+          obsLanc = `${baseObs ? baseObs+" " : ""}${pad(numParcela)}/${pad(total)}`;
+        }
+        state.lancamentos.push({id:uid(),data,tipo:orig.tipo,categoria:orig.categoria,valor:orig.valor,conta:orig.conta,obs:obsLanc,status,recorrente:false,originalId:orig.id});
         added++;
       }
       cur = new Date(cur.getFullYear(), cur.getMonth()+1, 1);
@@ -1493,6 +1512,11 @@ function openModal(id, prefill) {
   document.getElementById("fRecorrente").checked = l?!!l.recorrente:false;
   document.getElementById("fRecMeses").value = l && l.recMeses ? l.recMeses : "";
   document.getElementById("fRecMesesField").hidden = !(l?!!l.recorrente:false);
+  const isParcelado = !!(l && l.parcelaTotal);
+  document.getElementById("fParcelado").checked = isParcelado;
+  document.getElementById("fParceladoFields").hidden = !isParcelado;
+  document.getElementById("fParcelaInicial").value = l && l.parcelaInicial ? l.parcelaInicial : "1";
+  document.getElementById("fParcelaTotal").value = l && l.parcelaTotal ? l.parcelaTotal : "";
   rebuildCatSelect(tipo, base.categoria||null);
   rebuildContaSelect(base.conta||null, tipo);
   document.getElementById("fStatus").value = l?l.status:defaultStatusFor(defaultDate);
@@ -1507,6 +1531,34 @@ document.getElementById("btnNovo").addEventListener("click",()=>openModal());
 document.querySelectorAll(".type-tabs button").forEach(b=>b.addEventListener("click",()=>setTipoTab(b.dataset.type)));
 document.getElementById("fRecorrente").addEventListener("change", e => {
   document.getElementById("fRecMesesField").hidden = !e.target.checked;
+  if (!e.target.checked) {
+    document.getElementById("fParcelado").checked = false;
+    document.getElementById("fParceladoFields").hidden = true;
+  }
+});
+document.getElementById("fParcelado").addEventListener("change", e => {
+  document.getElementById("fParceladoFields").hidden = !e.target.checked;
+  if (e.target.checked) {
+    // Sincroniza total de parcelas com fRecMeses se já preenchido
+    const recMeses = document.getElementById("fRecMeses").value;
+    if (recMeses && !document.getElementById("fParcelaTotal").value) {
+      document.getElementById("fParcelaTotal").value = recMeses;
+    }
+    if (!document.getElementById("fParcelaInicial").value) {
+      document.getElementById("fParcelaInicial").value = "1";
+    }
+  }
+});
+document.getElementById("fParcelaTotal").addEventListener("input", e => {
+  // Sincroniza recMeses com total de parcelas automaticamente
+  const total = parseInt(e.target.value)||0;
+  const inicial = parseInt(document.getElementById("fParcelaInicial").value)||1;
+  if (total >= inicial) document.getElementById("fRecMeses").value = total - inicial + 1;
+});
+document.getElementById("fParcelaInicial").addEventListener("input", () => {
+  const total = parseInt(document.getElementById("fParcelaTotal").value)||0;
+  const inicial = parseInt(document.getElementById("fParcelaInicial").value)||1;
+  if (total >= inicial) document.getElementById("fRecMeses").value = total - inicial + 1;
 });
 // Máscara monetária: formata o campo de valor enquanto o usuário digita
 document.getElementById("fValor").addEventListener("input", e => {
@@ -1566,16 +1618,26 @@ document.getElementById("btnSaveLanc").addEventListener("click",()=>{
   const recorrente=document.getElementById("fRecorrente").checked;
   const recMesesRaw = document.getElementById("fRecMeses").value.trim();
   const recMeses = recorrente && recMesesRaw ? Math.max(1, parseInt(recMesesRaw)||0) : null;
+  const parcelado = recorrente && document.getElementById("fParcelado").checked;
+  const parcelaInicial = parcelado ? (parseInt(document.getElementById("fParcelaInicial").value)||1) : null;
+  const parcelaTotal = parcelado ? (parseInt(document.getElementById("fParcelaTotal").value)||null) : null;
+  // Se parcelado, ajusta a obs do original com o número da parcela inicial
+  let obsFinal = obs;
+  if (parcelado && parcelaTotal) {
+    const pad = n => String(n).padStart(String(parcelaTotal).length, "0");
+    const baseObs = (obs||"").replace(/\s*\d+\/\d+$/, "").trim();
+    obsFinal = `${baseObs ? baseObs+" " : ""}${pad(parcelaInicial)}/${pad(parcelaTotal)}`;
+  }
   if (state.editingLancId){
     const l=state.lancamentos.find(x=>x.id===state.editingLancId);
     const wasRec=l.recorrente;
     if (recorrente && l.originalId) { l.originalId = null; }
-    Object.assign(l,{data,tipo,categoria,valor:Math.round(valor*100)/100,conta,obs,status,recorrente,recMeses});
+    Object.assign(l,{data,tipo,categoria,valor:Math.round(valor*100)/100,conta,obs:obsFinal,status,recorrente,recMeses,parcelaInicial,parcelaTotal});
     // Se mudou recorrência (desligou OU mudou período), limpa cópias
     if (wasRec && !recorrente) state.lancamentos=state.lancamentos.filter(x=>x.originalId!==l.id);
     else if (recorrente) state.lancamentos=state.lancamentos.filter(x=>x.originalId!==l.id); // reconstrói
   } else {
-    state.lancamentos.push({id:uid(),data,tipo,categoria,valor:Math.round(valor*100)/100,conta,obs,status,recorrente,recMeses,originalId:null});
+    state.lancamentos.push({id:uid(),data,tipo,categoria,valor:Math.round(valor*100)/100,conta,obs:obsFinal,status,recorrente,recMeses,parcelaInicial,parcelaTotal,originalId:null});
   }
   if (recorrente) materializaRecorrentes();
   // Se editou um categoria "Doações" manualmente, marca como manual (não é mais auto)
