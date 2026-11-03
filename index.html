@@ -265,6 +265,14 @@ button,input,select,textarea{font-family:inherit}
 .chip.fixa{background:var(--violet-soft);color:var(--violet)}
 .chip.auto{background:var(--emerald-soft);color:var(--emerald)}
 .empty{padding:40px 20px;text-align:center;color:var(--muted);font-size:13px}
+/* ---- Painel de alertas ---- */
+.badge-alert{display:inline-flex;align-items:center;justify-content:center;min-width:20px;height:20px;padding:0 6px;border-radius:999px;background:var(--bad);color:#fff;font-size:11px;font-weight:700;margin-left:8px}
+.alert-urgencia{font-size:10px;font-weight:700;letter-spacing:0.04em;padding:2px 7px;border-radius:999px;margin-left:0}
+.urgencia-hoje{background:#FEE2E2;color:#DC2626}
+.urgencia-amanha{background:#FFEDD5;color:#EA580C}
+.urgencia-semana{background:#FEF3C7;color:#D97706}
+.urgencia-mes{background:#EDE9FE;color:#7C3AED}
+.urgencia-ok{background:#F1F5F9;color:#64748B}
 
 /* ====== CAIXINHAS ====== */
 .caixinha-grid{display:grid;grid-template-columns:1fr;gap:14px}
@@ -485,8 +493,8 @@ button,input,select,textarea{font-family:inherit}
       <div class="card-body"><div class="distrib"><div class="donut-wrap"><canvas id="chartDonut"></canvas><div class="donut-center"><div class="val num" id="donutTotal">—</div><div class="lbl">planejado</div></div></div><div class="distrib-leg" id="distribLeg"></div></div></div>
     </div>
     <div class="card">
-      <div class="card-head"><h3><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="M7 15l4-4 4 4 5-5"/></svg> Lançamentos recentes</h3></div>
-      <div class="card-body"><div id="recentList" class="lanc-list"></div></div>
+      <div class="card-head"><h3><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg> Próximos a vencer</h3><span id="alertBadge" class="badge-alert" style="display:none"></span></div>
+      <div class="card-body"><div id="alertList" class="lanc-list"></div></div>
     </div>
   </div>
 
@@ -1013,7 +1021,7 @@ function renderMes() {
 
   renderDonut(lancs);
   renderLancList("lancList", lancs);
-  renderLancList("recentList", lancs, 5);
+  renderAlertList();
   document.getElementById("lancCount").textContent = lancs.length + " lanç.";
 }
 
@@ -1055,6 +1063,66 @@ function renderDonut(lancs) {
             <span class="pct">${pct.toFixed(1)}%</span>
             <span class="val num">${fmtBRL(v)}</span>`;
   }).join("");
+}
+
+function renderAlertList() {
+  const today = new Date();
+  today.setHours(0,0,0,0);
+  const todayStr = today.toISOString().slice(0,10);
+
+  // Pega todos os lançamentos com status "A vencer" ou "Pendente" que têm data >= hoje
+  const aVencer = state.lancamentos.filter(l => {
+    const st = l.status;
+    return (st === "A vencer" || st === "Pendente") && l.data >= todayStr;
+  });
+
+  // Ordena: mais próximos primeiro
+  aVencer.sort((a,b) => a.data < b.data ? -1 : a.data > b.data ? 1 : 0);
+
+  const el = document.getElementById("alertList");
+  const badge = document.getElementById("alertBadge");
+
+  if (!aVencer.length) {
+    el.innerHTML = `<div class="empty">🎉 Nenhum vencimento próximo.</div>`;
+    badge.style.display = "none";
+    return;
+  }
+
+  badge.style.display = "";
+  badge.textContent = aVencer.length;
+
+  const toShow = aVencer.slice(0, 7);
+
+  el.innerHTML = toShow.map(l => {
+    const data = new Date(l.data + "T00:00:00");
+    const diffMs = data - today;
+    const diffDias = Math.round(diffMs / 86400000);
+
+    let urgCls, urgLabel;
+    if (diffDias === 0)       { urgCls = "urgencia-hoje";   urgLabel = "HOJE"; }
+    else if (diffDias === 1)  { urgCls = "urgencia-amanha"; urgLabel = "AMANHÃ"; }
+    else if (diffDias <= 7)   { urgCls = "urgencia-semana"; urgLabel = `${diffDias}d`; }
+    else if (diffDias <= 30)  { urgCls = "urgencia-mes";    urgLabel = `${diffDias}d`; }
+    else                      { urgCls = "urgencia-ok";     urgLabel = `${diffDias}d`; }
+
+    const d = +l.data.slice(8,10), m = +l.data.slice(5,7);
+    const cls = l.tipo.toLowerCase();
+    const chips = [];
+    if (l.recorrente || l.originalId) chips.push(`<span class="chip fixa">↻ fixa</span>`);
+    if (l.status === "Pendente") chips.push(`<span class="chip pendente">pendente</span>`);
+
+    return `<div class="lanc ${cls}" data-id="${l.id}">
+      <div class="date"><span class="d">${d}</span>${MESES_ABR[m-1].toLowerCase()}</div>
+      ${iconHTML(catGrupo(l.categoria))}
+      <div class="info">
+        <div class="cat">${l.obs ? l.obs+' <span class="cat-sep">–</span> '+l.categoria : l.categoria}</div>
+        <div class="meta">${l.conta} <span class="alert-urgencia ${urgCls}">${urgLabel}</span>${chips.join("")}</div>
+      </div>
+      <div class="val num">${fmtBRL2(+l.valor)}</div>
+    </div>`;
+  }).join("");
+
+  el.querySelectorAll(".lanc").forEach(e2 => e2.addEventListener("click", () => openModal(e2.dataset.id)));
 }
 
 function renderLancList(id, lancs, limit=null) {
