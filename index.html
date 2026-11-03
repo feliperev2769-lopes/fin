@@ -997,7 +997,7 @@ function renderMes() {
   // Sincroniza ordem com metas existentes
   state.ordemMetas = state.ordemMetas.filter(c => c in state.metas);
   Object.keys(state.metas).forEach(c => { if (!state.ordemMetas.includes(c)) state.ordemMetas.push(c); });
-  const cats = state.ordemMetas;
+  const cats = state.ordemMetas.filter(c => c !== "Doações");
   orcEl.innerHTML = cats.map(cat => {
     const projV = state.metas[cat] || 0;
     const realV = sumByCat(lancs, cat);
