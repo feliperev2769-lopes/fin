@@ -1915,13 +1915,16 @@ document.getElementById("catSave").addEventListener("click", ()=>{
     if (!ex) CATEGORIAS.push({nome, grupo, tipo:"Despesa"});
     else ex.grupo = grupo;
   }
-  // salva visibilidade
-  if (editingCat || nome) {
-    const nomeFinal = (editingCat && editingCat !== nome) ? nome : (editingCat || nome);
+  // salva visibilidade (só aplica se estava editando; nova categoria é sempre visível)
+  if (editingCat) {
+    const nomeFinal = (editingCat !== nome) ? nome : editingCat;
     const vis = document.getElementById("catVis").checked;
     state.catsOcultas = state.catsOcultas || [];
     if (!vis) { if (!state.catsOcultas.includes(nomeFinal)) state.catsOcultas.push(nomeFinal); }
     else { state.catsOcultas = state.catsOcultas.filter(c => c !== nomeFinal); }
+  } else {
+    // nova categoria: garante que não está oculta
+    state.catsOcultas = (state.catsOcultas||[]).filter(c => c !== nome);
   }
   savePrefs(); save(); closeCatModal(); renderAll(); setupFilters();
   toast(editingCat ? "Categoria atualizada" : "Categoria criada");
