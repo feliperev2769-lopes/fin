@@ -1076,7 +1076,9 @@ function renderMes() {
 
   // orçamento table
   const orcEl = document.getElementById("orcList");
-  // Sincroniza ordem com metas existentes
+  // Sincroniza ordem com metas existentes + sempre inclui Cartões mesmo sem meta
+  const cartoesSemMeta = CATEGORIAS.filter(c => c.grupo === "Cartões" && !(c.nome in state.metas)).map(c => c.nome);
+  cartoesSemMeta.forEach(c => { state.metas[c] = state.metas[c] || 0; });
   state.ordemMetas = state.ordemMetas.filter(c => c in state.metas);
   Object.keys(state.metas).forEach(c => { if (!state.ordemMetas.includes(c)) state.ordemMetas.push(c); });
   const cats = state.ordemMetas.filter(c => c !== "Doações" && !(state.catsOcultas||[]).includes(c));
@@ -2079,6 +2081,9 @@ async function parseAndLoadBuffer(buf) {
   if (lancs.length) state.lancamentos = lancs;
   if (Object.keys(metas).length) state.metas = metas;
   if (caixinhas.length) state.caixinhas = caixinhas;
+  // Garantir que Cartões nunca fiquem ocultos (remove da lista de ocultas)
+  const nomesCartoes = CATEGORIAS.filter(c => c.grupo === "Cartões").map(c => c.nome);
+  state.catsOcultas = (state.catsOcultas||[]).filter(c => !nomesCartoes.includes(c));
   materializaRecorrentes();
   atualizarDoacaoAutomatica();
   state.mes = todayYm(); setupAnoDropdown(); setupFilters(true); renderAll();
@@ -2236,6 +2241,9 @@ updateFSLabels();
       .filter(c => c.grupo !== "Cartões" && c.nome !== "Doações")
       .map(c => c.nome);
   }
+  // Garantir que Cartões nunca fiquem na lista de ocultas (seja de prefs antigas ou init)
+  const nomesCartoes = CATEGORIAS.filter(c => c.grupo === "Cartões").map(c => c.nome);
+  state.catsOcultas = (state.catsOcultas||[]).filter(c => !nomesCartoes.includes(c));
   materializaRecorrentes();
   atualizarDoacaoAutomatica();
   setupAnoDropdown();
