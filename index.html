@@ -763,6 +763,8 @@ const CATEGORIAS = [
   {nome:"Outras receitas",grupo:"Receita",tipo:"Receita"},
   {nome:"Poupança",grupo:"Guardar",tipo:"Guardar"},
 ];
+// Nomes originais fixos — usados para detectar categorias customizadas pelo usuário
+const CATS_ORIGINAIS = new Set(CATEGORIAS.map(c => c.nome));
 // Contas de origem/destino genéricas. O usuário pode editar na planilha ou renomear ao lançar.
 const CONTAS = ["Conta Corrente","Conta Digital","Cartão","Dinheiro"];
 const FORMAS_PAG = ["PIX","Boleto","Cartão de Crédito","Cartão de Débito","Dinheiro","Débito Automático"];
@@ -1985,7 +1987,9 @@ function fsOpenDB() {
 async function savePrefs() {
   try {
     const db = await fsOpenDB();
-    const prefs = { catsOcultas: state.catsOcultas||[], ordemMetas: state.ordemMetas||[], catsExcluidas: state.catsExcluidas||[] };
+    // catsCustom: categorias criadas pelo usuário (não existem no array CATEGORIAS original)
+    const catsCustom = CATEGORIAS.filter(c => !CATS_ORIGINAIS.has(c.nome)).map(c => ({nome: c.nome, grupo: c.grupo, tipo: c.tipo}));
+    const prefs = { catsOcultas: state.catsOcultas||[], ordemMetas: state.ordemMetas||[], catsExcluidas: state.catsExcluidas||[], catsCustom };
     await new Promise((res, rej) => {
       const tx = db.transaction(PREFS_STORE, "readwrite");
       tx.objectStore(PREFS_STORE).put(prefs, PREFS_KEY);
@@ -2006,6 +2010,12 @@ async function loadPrefs() {
       if (prefs.catsOcultas) state.catsOcultas = prefs.catsOcultas;
       if (prefs.ordemMetas && prefs.ordemMetas.length) state.ordemMetas = prefs.ordemMetas;
       if (prefs.catsExcluidas) state.catsExcluidas = prefs.catsExcluidas;
+      // Restaura categorias customizadas no array CATEGORIAS (são perdidas ao recarregar a página)
+      if (prefs.catsCustom && prefs.catsCustom.length) {
+        prefs.catsCustom.forEach(c => {
+          if (!CATEGORIAS.find(x => x.nome === c.nome)) CATEGORIAS.push(c);
+        });
+      }
     }
   } catch(e){}
 }
