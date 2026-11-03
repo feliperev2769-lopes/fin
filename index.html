@@ -1259,7 +1259,7 @@ function renderAlertList() {
 }
 
 function renderLancList(id, lancs, limit=null) {
-  const sorted = [...lancs].sort((a,b)=> a.data<b.data?1:-1);
+  const sorted = [...lancs].sort((a,b)=> a.data<b.data?-1:1);
   const toShow = limit?sorted.slice(0,limit):sorted;
   const el = document.getElementById(id);
   if (!toShow.length){el.innerHTML=`<div class="empty">Sem lançamentos. Toque no botão para adicionar.</div>`;return;}
