@@ -1079,12 +1079,15 @@ function renderMes() {
 
   // orçamento table
   const orcEl = document.getElementById("orcList");
-  // Sincroniza ordem com metas existentes + sempre inclui Cartões mesmo sem meta (exceto os explicitamente excluídos)
+  // Sincroniza ordem com metas existentes + inclui Cartões sem meta APENAS se já há dados carregados
   // Usa metasRender (cópia) para não poluir state.metas com zeros temporários
   const excluidas = state.catsExcluidas || [];
   const metasRender = Object.assign({}, state.metas);
-  CATEGORIAS.filter(c => c.grupo === "Cartões" && !(c.nome in metasRender) && !excluidas.includes(c.nome))
-            .forEach(c => { metasRender[c.nome] = 0; });
+  const temDados = Object.keys(state.metas).length > 0 || state.lancamentos.length > 0;
+  if (temDados) {
+    CATEGORIAS.filter(c => c.grupo === "Cartões" && !(c.nome in metasRender) && !excluidas.includes(c.nome))
+              .forEach(c => { metasRender[c.nome] = 0; });
+  }
   state.ordemMetas = state.ordemMetas.filter(c => c in metasRender);
   Object.keys(metasRender).forEach(c => { if (!state.ordemMetas.includes(c)) state.ordemMetas.push(c); });
   const cats = state.ordemMetas.filter(c => c !== "Doações" && !(state.catsOcultas||[]).includes(c));
@@ -2130,6 +2133,10 @@ async function parseAndLoadBuffer(buf) {
         if (!state.catsExcluidas) state.catsExcluidas = [];
         if (!state.catsExcluidas.includes(valor)) state.catsExcluidas.push(valor);
       }
+      if (chave === "OrdemCat" && valor) {
+        if (!state.ordemMetas) state.ordemMetas = [];
+        if (!state.ordemMetas.includes(valor)) state.ordemMetas.push(valor);
+      }
     });
   }
   // Garantir que Cartões nunca fiquem ocultos (remove da lista de ocultas)
@@ -2168,6 +2175,7 @@ async function buildWorkbookBlob() {
   const cfgdata = [["Chave","Valor","Grupo","Tipo"]];
   CATEGORIAS.filter(c => !CATS_ORIGINAIS.has(c.nome)).forEach(c => cfgdata.push(["CatCustom", c.nome, c.grupo, c.tipo]));
   (state.catsExcluidas||[]).forEach(c => cfgdata.push(["CatExcluida", c]));
+  (state.ordemMetas||[]).forEach((c,i) => cfgdata.push(["OrdemCat", c, i]));
   const ws5 = XLSX.utils.aoa_to_sheet(cfgdata); ws5["!cols"]=[{wch:14},{wch:28},{wch:16},{wch:10}];
   XLSX.utils.book_append_sheet(wb, ws5, "Config");
   const out=XLSX.write(wb,{bookType:"xlsx",type:"array"});
