@@ -1117,7 +1117,9 @@ function renderMes() {
       state.metas[e.target.dataset.cat] = raw;
       e.target.dataset.raw = raw;
       e.target.value = raw > 0 ? raw.toLocaleString('pt-BR',{minimumFractionDigits:0,maximumFractionDigits:2}) : raw;
-      save(); renderAll();
+      save();
+      // Atualiza só os totais sem recriar os inputs (evita duplo blur ao destruir o DOM)
+      setTimeout(() => renderAll(), 50);
     });
   });
   orcEl.querySelectorAll("[data-editcat]").forEach(b => b.addEventListener("click", e => {
