@@ -1110,15 +1110,29 @@ function renderMes() {
   orcEl.querySelectorAll(".edit-val").forEach(inp => {
     inp.addEventListener("focus", e => {
       // ao focar: mostra número puro para edição
-      e.target.value = parseFloat(e.target.dataset.raw)||0 || "";
+      const v = parseFloat(e.target.dataset.raw);
+      e.target.value = v > 0 ? v : "";
+    });
+    inp.addEventListener("keydown", e => {
+      // Enter confirma sem perder o foco no DOM reconstruído
+      if (e.key === "Enter") e.target.blur();
     });
     inp.addEventListener("blur", e => {
-      const raw = parseFloat(String(e.target.value).replace(/\./g,"").replace(",","."))||0;
-      state.metas[e.target.dataset.cat] = raw;
+      // Ignora se o valor não mudou
+      const anterior = parseFloat(e.target.dataset.raw) || 0;
+      const digitado = String(e.target.value).trim();
+      if (digitado === "" && anterior === 0) return;
+      const raw = parseFloat(digitado.replace(/\./g,"").replace(",","."))||0;
+      if (raw === anterior) {
+        // Só reformata
+        e.target.value = raw > 0 ? raw.toLocaleString('pt-BR',{minimumFractionDigits:0,maximumFractionDigits:2}) : "0";
+        return;
+      }
+      const cat = e.target.dataset.cat;
+      state.metas[cat] = raw;
       e.target.dataset.raw = raw;
-      e.target.value = raw > 0 ? raw.toLocaleString('pt-BR',{minimumFractionDigits:0,maximumFractionDigits:2}) : raw;
+      e.target.value = raw > 0 ? raw.toLocaleString('pt-BR',{minimumFractionDigits:0,maximumFractionDigits:2}) : "0";
       save();
-      // Atualiza só os totais sem recriar os inputs (evita duplo blur ao destruir o DOM)
       setTimeout(() => renderAll(), 50);
     });
   });
