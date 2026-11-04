@@ -2175,7 +2175,12 @@ async function buildWorkbookBlob() {
   ws1["!cols"]=[{wch:12},{wch:6},{wch:6},{wch:10},{wch:24},{wch:16},{wch:12},{wch:16},{wch:24},{wch:10},{wch:10}];
   XLSX.utils.book_append_sheet(wb,ws1,"Lançamentos");
   const mdata=[[],["Metas por categoria"],["Categoria","Meta Mensal"]];
-  Object.entries(state.metas).sort().forEach(([c,v])=>mdata.push([c,v]));
+  // Inclui também cartões que só existem no metasRender (adicionados sem meta explícita)
+  const metasParaSalvar = Object.assign({}, state.metas);
+  CATEGORIAS.filter(c => c.grupo === "Cartões" && !(c.nome in metasParaSalvar) && !(state.catsExcluidas||[]).includes(c.nome))
+            .forEach(c => { metasParaSalvar[c.nome] = 0; });
+  console.log("Salvando metas:", metasParaSalvar);
+  Object.entries(metasParaSalvar).sort().forEach(([c,v])=>mdata.push([c,v]));
   const ws2=XLSX.utils.aoa_to_sheet(mdata); ws2["!cols"]=[{wch:28},{wch:14}];
   XLSX.utils.book_append_sheet(wb,ws2,"Metas");
   const cdata=[[],["Caixinhas"],["Caixinha","Meta Mensal","Meta Total","Saldo"]];
