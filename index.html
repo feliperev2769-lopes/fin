@@ -1117,11 +1117,26 @@ function renderMes() {
       // Enter confirma sem perder o foco no DOM reconstruído
       if (e.key === "Enter") e.target.blur();
     });
+    inp.addEventListener("input", e => {
+      // Salva em state.metas a cada tecla — garante valor correto mesmo se blur disparar com campo vazio
+      const digitado = String(e.target.value).trim();
+      if (digitado === "") return; // não zera enquanto digita
+      const raw = parseFloat(digitado.replace(/\./g,"").replace(",","."))||0;
+      if (raw > 0) {
+        const cat = e.target.dataset.cat;
+        state.metas[cat] = raw;
+        e.target.dataset.raw = raw;
+      }
+    });
     inp.addEventListener("blur", e => {
       // Ignora se o valor não mudou
       const anterior = parseFloat(e.target.dataset.raw) || 0;
       const digitado = String(e.target.value).trim();
-      if (digitado === "" && anterior === 0) return;
+      // Se campo ficou vazio ao sair (ex: clicou Salvar), mantém valor anterior já em state.metas
+      if (digitado === "") {
+        e.target.value = anterior > 0 ? anterior.toLocaleString('pt-BR',{minimumFractionDigits:0,maximumFractionDigits:2}) : "0";
+        return;
+      }
       const raw = parseFloat(digitado.replace(/\./g,"").replace(",","."))||0;
       if (raw === anterior) {
         // Só reformata
@@ -2262,6 +2277,18 @@ document.getElementById("fileLoad").addEventListener("change", async e => {
 });
 
 async function doSave() {
+  // Captura valores dos inputs de projetado antes do blur apagar o conteúdo
+  document.querySelectorAll(".edit-val[data-cat]").forEach(inp => {
+    const digitado = String(inp.value).trim();
+    if (digitado !== "") {
+      const raw = parseFloat(digitado.replace(/\./g,"").replace(",","."))||0;
+      if (raw > 0) state.metas[inp.dataset.cat] = raw;
+    } else {
+      // campo vazio = usa o data-raw (valor anterior salvo)
+      const anterior = parseFloat(inp.dataset.raw) || 0;
+      if (anterior > 0) state.metas[inp.dataset.cat] = anterior;
+    }
+  });
   const blob = await buildWorkbookBlob();
   const filename = "Controle de Finanças.xlsx";
   if (supportsFS) {
